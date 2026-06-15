@@ -2,7 +2,13 @@
 // Complementary Shaders by EminGT //
 /////////////////////////////////////
 
+#ifndef VOXY
+    #define VOXY 1
+#endif
 #define VOXY_PATCH
+#ifndef VOXY_TRANSLUCENT
+    #define VOXY_TRANSLUCENT
+#endif
 #define texture2DLod textureLod
 #define texture2D texture
 
@@ -194,6 +200,9 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
         vec4 reflection = vec4(0.0);
     #endif
     ////
+
+    float skyFade = 0.0;
+    DoFog(color, skyFade, lViewPos, playerPos, VdotU, VdotS, dither, false, 0.0);
 
     // Writing to: 0 (defined in voxy.json)
     gbufferData0 = color;

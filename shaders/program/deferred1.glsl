@@ -320,43 +320,56 @@ void main() {
             #ifdef DISTANT_HORIZONS
                 float z0lod = texelFetch(dhDepthTex, texelCoord, 0).r;
             #elif defined VOXY
-                float z0lod = texelFetch(vxDepthTexTrans, texelCoord, 0).r;
+                // Voxy opaque terrain is the authoritative LoD surface for post effects.
+                // The translucent depth buffer can contain stale non-1.0 values in sky/no-geometry
+                // pixels on Iris 1.6.x, which makes fog and LoD shadows miss or leak.
+                float z0lod = texelFetch(vxDepthTexOpaque, texelCoord, 0).r;
             #endif
             if (z0lod < 1.0) { // Lod Chunks
                 vec4 screenPosLod = vec4(texCoord, z0lod, 1.0);
                 #ifdef DISTANT_HORIZONS
                     vec4 viewPosLod = dhProjectionInverse * (screenPosLod * 2.0 - 1.0);
                     viewPosLod /= viewPosLod.w;
+                    vec3 nViewPosLod = normalize(viewPosLod.xyz);
 
                     #if SHADOW_QUALITY > -1
-                        color.rgb *= 0.5 + 0.5 * GetLODShadows(viewPosLod.xyz, nViewPos, dhDepthTex, dhProjection, dhProjectionInverse, dither);
+                        color.rgb *= 0.5 + 0.5 * GetLODShadows(viewPosLod.xyz, nViewPosLod, dhDepthTex, dhProjection, dhProjectionInverse, dither);
                     #endif
                 #elif defined VOXY
                     vec4 viewPosLod = vxProjInv * (screenPosLod * 2.0 - 1.0);
                     viewPosLod /= viewPosLod.w;
+                    vec3 nViewPosLod = normalize(viewPosLod.xyz);
 
                     #if SHADOW_QUALITY > -1
-                        lodShadow = GetLODShadows(viewPosLod.xyz, nViewPos, vxDepthTexTrans, vxProj, vxProjInv, dither);
+                        lodShadow = GetLODShadows(viewPosLod.xyz, nViewPosLod, vxDepthTexOpaque, vxProj, vxProjInv, dither);
                         lodShadow += OSIEBCA; // For being able to check if a calculation has been done;
                     #endif
 
-                    // VOXY-FIX: SSAO on LoD disabled. On Iris 1.6.11 the LoD depth texture (vxDepthTexTrans)
-                    // is not cleared to 1.0 in sky/no-geometry regions, so SSAO over it produced a halo
-                    // around the sun and harsh banding. LoD is too distant for screen-space AO to matter.
-                    // (High-version Iris handles this via newer LoD pathways; on 1.6.11 we skip it.)
+                    // Voxy LoD SSAO is intentionally disabled on Iris 1.6.x.
+                    // The LoD depth path produces sky halos near the sun and colored speckle noise
+                    // at the chunk/sky boundary; the distant geometry benefit is negligible.
                     #if SSAO_QUALI > 0 && 0
                         float farLod = 16*20, nearLod = 16;
                         float aoWorldRange = (farLod - nearLod);
-                        float ssao = GetAmbientOcclusion(vxDepthTexTrans, z0lod, GetLinearDepth(z0lod, farLod, nearLod), dither, farLod, nearLod, aoWorldRange);
+                        float ssao = GetAmbientOcclusion(vxDepthTexOpaque, z0lod, GetLinearDepth(z0lod, farLod, nearLod), dither, farLod, nearLod, aoWorldRange);
                         color.rgb *= pow2(pow2(ssao));
                     #endif
                 #endif
 
                 lViewPos = length(viewPosLod.xyz);
+                nViewPos = nViewPosLod;
+                VdotU = dot(nViewPos, upVec);
+                VdotS = dot(nViewPos, sunVec);
                 playerPos = ViewToPlayer(viewPosLod.xyz);
                 waterRefColor = color.rgb;
-                
-                DoFog(color, skyFade, lViewPos, playerPos, VdotU, VdotS, dither, false, 0.0);
+
+                #ifdef DISTANT_HORIZONS
+                    DoFog(color, skyFade, lViewPos, playerPos, VdotU, VdotS, dither, false, 0.0);
+                #else
+                    // Voxy opaque/translucent programs apply fog while rendering into colortex0.
+                    // Re-applying it here double-fogs LoD terrain and amplifies dither noise.
+                    skyFade = 0.0;
+                #endif
             } else
         #endif
         { // Sky

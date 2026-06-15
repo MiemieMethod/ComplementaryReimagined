@@ -2,6 +2,9 @@
 // Complementary Shaders by EminGT //
 /////////////////////////////////////
 
+#ifndef VOXY
+    #define VOXY 1
+#endif
 #define VOXY_PATCH
 #define texture2DLod textureLod
 #define texture2D texture
@@ -68,6 +71,7 @@ void DoFoliageColorTweaks(inout vec3 color, inout vec3 shadowMult, inout float s
 #ifdef ATM_COLOR_MULTS
     #include "/lib/colors/colorMultipliers.glsl"
 #endif
+#include "/lib/atmospherics/fog/mainFog.glsl"
 
 #ifdef TAA
     #include "/lib/antialiasing/jitter.glsl"
@@ -127,6 +131,11 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
         dither = fract(dither + goldenRatio * mod(float(frameCounter), 3600.0));
     #endif
 
+    #ifdef ATM_COLOR_MULTS
+        atmColorMult = GetAtmColorMult();
+        sqrtAtmColorMult = sqrt(atmColorMult);
+    #endif
+
     int subsurfaceMode = 0;
     bool noSmoothLighting = false, noDirectionalShading = false, noVanillaAO = false, centerShadowBias = false, noGeneratedNormals = false, doTileRandomisation = true;
     float smoothnessD = 0.0, materialMask = 0.0;
@@ -157,6 +166,13 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
     #ifdef IRIS_FEATURE_FADE_VARIABLE
         skyLightFactor *= 0.5;
     #endif
+
+    float VdotU = dot(nViewPos, upVec);
+    float VdotS = dot(nViewPos, sunVec);
+    float skyFade = 0.0;
+    vec4 foggedColor = vec4(color.rgb, 1.0);
+    DoFog(foggedColor, skyFade, lViewPos, playerPos, VdotU, VdotS, dither, false, 0.0);
+    color.rgb = foggedColor.rgb;
 
     gbufferData0 = color;
     gbufferData6 = vec4(smoothnessD, materialMask, skyLightFactor, 1.0);
