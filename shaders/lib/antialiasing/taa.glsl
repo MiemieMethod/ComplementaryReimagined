@@ -77,6 +77,25 @@ vec2 Reprojection(vec3 pos, mat4 projectionInverse, mat4 previousProjection) {
 	return previousPosition.xy / previousPosition.w * 0.5 + 0.5;
 }
 
+// VOXY-FIX: dedicated LoD reprojection using Voxy's OWN matrix chain end-to-end.
+// The generic 3-arg Reprojection mixes Voxy projection with vanilla modelview, which on
+// Iris 1.6.11 (where vx* matrices are a frame offset vs vanilla) produces wrong previous-frame
+// coords -> trail/ghost behind moving LoD. Staying entirely in Voxy space (vxProjInv ->
+// vxModelViewInv -> world offset -> vxModelViewPrev -> vxProjPrev) keeps the reprojection
+// self-consistent so history is fetched correctly, matching near-terrain quality.
+#if defined VOXY
+vec2 ReprojectionVoxy(vec3 pos) {
+    pos = pos * 2.0 - 1.0;
+    vec4 viewPosPrev = vxProjInv * vec4(pos, 1.0);
+    viewPosPrev /= viewPosPrev.w;
+    vec4 worldPos = vxModelViewInv * viewPosPrev;
+    worldPos += vec4(cameraPosition - previousCameraPosition, 0.0);
+    vec4 previousPosition = vxModelViewPrev * worldPos;
+    previousPosition = vxProjPrev * previousPosition;
+    return previousPosition.xy / previousPosition.w * 0.5 + 0.5;
+}
+#endif
+
 vec3 ClipAABB(vec3 q, vec3 aabb_min, vec3 aabb_max){
     vec3 p_clip = 0.5 * (aabb_max + aabb_min);
     vec3 e_clip = 0.5 * (aabb_max - aabb_min) + 0.00000001;
@@ -213,9 +232,16 @@ void DoTAA(inout vec3 color, inout vec3 temp, float z1) {
 
     #if defined DISTANT_HORIZONS || defined VOXY
         if (lodChunk) {
-            blendMinimum = 0.75;
-            blendVariable = 0.05;
-            blendConstant = 0.85;
+            // VOXY-FIX: LoD reprojection (vx* matrices) is frame-offset vs vanilla on Iris 1.6.11,
+            // so history is only WRONG while the camera MOVES (offset != 0). When still, reprojection
+            // is effectively correct. So make LoD history blend SPEED-ADAPTIVE: accumulate lots of
+            // history when still (kills noise/aliasing, no trail since not moving), drop to near-zero
+            // while moving (kills the trail, brief noise is unnoticeable in motion).
+            float camSpeed = length(cameraPosition - previousCameraPosition);
+            float still = 1.0 - clamp(camSpeed / 0.02, 0.0, 1.0); // 1 when still, 0 when moving >0.02/frame
+            blendMinimum = 0.0;
+            blendVariable = 0.0;
+            blendConstant = mix(0.1, 0.92, still); // moving -> 0.1 (no trail); still -> 0.92 (clean)
             edge = 0.0;
         }
     #endif

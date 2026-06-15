@@ -340,7 +340,11 @@ void main() {
                         lodShadow += OSIEBCA; // For being able to check if a calculation has been done;
                     #endif
 
-                    #if SSAO_QUALI > 0
+                    // VOXY-FIX: SSAO on LoD disabled. On Iris 1.6.11 the LoD depth texture (vxDepthTexTrans)
+                    // is not cleared to 1.0 in sky/no-geometry regions, so SSAO over it produced a halo
+                    // around the sun and harsh banding. LoD is too distant for screen-space AO to matter.
+                    // (High-version Iris handles this via newer LoD pathways; on 1.6.11 we skip it.)
+                    #if SSAO_QUALI > 0 && 0
                         float farLod = 16*20, nearLod = 16;
                         float aoWorldRange = (farLod - nearLod);
                         float ssao = GetAmbientOcclusion(vxDepthTexTrans, z0lod, GetLinearDepth(z0lod, farLod, nearLod), dither, farLod, nearLod, aoWorldRange);
