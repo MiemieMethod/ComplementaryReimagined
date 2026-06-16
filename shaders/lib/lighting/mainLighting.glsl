@@ -3,7 +3,7 @@
 #include "/lib/lighting/ggx.glsl"
 #include "/lib/lighting/minimumLighting.glsl"
 
-#if SHADOW_QUALITY > -1 && (defined OVERWORLD || defined END) && !defined DH_TERRAIN && !defined DH_WATER && !defined VOXY_PATCH
+#if SHADOW_QUALITY > -1 && (defined OVERWORLD || defined END) && !defined DH_TERRAIN && !defined DH_WATER && (!defined VOXY_PATCH || defined VOXY_DIRECT_SHADOWS)
     #include "/lib/lighting/shadowSampling.glsl"
 #endif
 
@@ -147,7 +147,7 @@ void DoLighting(inout vec4 color, inout vec3 shadowMult, vec3 playerPos, vec3 vi
         #endif
 
         if (shadowMult.r > 0.00001) {
-            #if SHADOW_QUALITY > -1 && !defined DH_TERRAIN && !defined DH_WATER && !defined VOXY_PATCH
+            #if SHADOW_QUALITY > -1 && !defined DH_TERRAIN && !defined DH_WATER && (!defined VOXY_PATCH || defined VOXY_DIRECT_SHADOWS)
                 if (NdotLM > 0.0001) {
                     vec3 shadowMultBeforeLighting = shadowMult;
                     float shadowLength = shadowDistance * 0.9166667 - lViewPos; //consistent08JJ622

@@ -6,6 +6,10 @@
     #define VOXY 1
 #endif
 #define VOXY_PATCH
+#define VOXY_DIRECT_SHADOWS
+#ifndef shadow2D
+    #define shadow2D(sampler, coord) vec4(texture(sampler, coord))
+#endif
 #define texture2DLod textureLod
 #define texture2D texture
 
@@ -42,9 +46,11 @@ float shadowTime = shadowTimeVar2 * shadowTimeVar2;
 
 int mat;
 float NdotU;
+float geoNdotU;
 float NdotUmax0;
 vec2 lmCoord;
 vec2 lmCoordM;
+vec2 signMidCoordPos;
 vec3 normal;
 vec4 glColor;
 
@@ -111,6 +117,7 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
             normal = -normal;
         }
         NdotU = dot(normal, upVec);
+        geoNdotU = NdotU;
         NdotUmax0 = max(NdotU, 0.0);
         glColor = parameters.tinting;
     //
@@ -146,7 +153,7 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
     // Praying to god these don't cause massive issues
     vec2 atlasSize = vec2(999999999.0);
     vec2 midCoord = vec2(999999999.0);
-    vec2 signMidCoordPos = vec2(999999999.0);
+    signMidCoordPos = vec2(0.0);
     vec2 absMidCoordPos = vec2(999999999.0);
     vec2 texCoord = vec2(999999999.0);
 

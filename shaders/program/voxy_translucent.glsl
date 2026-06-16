@@ -6,6 +6,10 @@
     #define VOXY 1
 #endif
 #define VOXY_PATCH
+#define VOXY_DIRECT_SHADOWS
+#ifndef shadow2D
+    #define shadow2D(sampler, coord) vec4(texture(sampler, coord))
+#endif
 #ifndef VOXY_TRANSLUCENT
     #define VOXY_TRANSLUCENT
 #endif
