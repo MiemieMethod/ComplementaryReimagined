@@ -96,6 +96,23 @@ void DoFoliageColorTweaks(inout vec3 color, inout vec3 shadowMult, inout float s
 #endif
 
 //Program//
+float GetVoxyVanillaAO(vec2 localUv, uint face, vec2 lightMap) {
+    vec2 uvM = clamp(localUv, vec2(0.0), vec2(1.0));
+    vec2 edge = min(uvM, 1.0 - uvM);
+
+    float crease = 1.0 - smoothstep(0.015, 0.16, min(edge.x, edge.y));
+    float corner = (1.0 - smoothstep(0.04, 0.34, edge.x))
+                 * (1.0 - smoothstep(0.04, 0.34, edge.y));
+
+    float topFace = float(face == 1u);
+    float sideFace = float((face >> 1u) != 0u);
+    float openSky = smoothstep(0.55, 0.95, lightMap.y);
+    float strength = mix(0.10, 0.17, topFace) + 0.025 * sideFace;
+    strength *= mix(0.85, 1.08, openSky);
+
+    return clamp(1.0 - crease * strength - corner * (strength * 0.75), 0.76, 1.0);
+}
+
 void voxy_emitFragment(VoxyFragmentParameters parameters) {
     // Prepare
         mat = int(parameters.customId);
@@ -120,6 +137,7 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
         geoNdotU = NdotU;
         NdotUmax0 = max(NdotU, 0.0);
         glColor = parameters.tinting;
+        glColor.a = GetVoxyVanillaAO(parameters.localUv, parameters.face, lmCoordM);
     //
     vec4 color = parameters.sampledColour * vec4(glColor.rgb, 1.0);
 
